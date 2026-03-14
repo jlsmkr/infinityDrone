@@ -16,7 +16,6 @@ public:
     static const int MAX_SYNTHS = 3;
 
     Pad(float samplerate, const Config& config) : settings(config) {
-        // WICHTIG: Nur i im Kopf hochzählen!
         for (int i = 0; i < MAX_SYNTHS; i++) {
             if (settings.synths[i].has_value()) {
                 synths[i] = new Synth(samplerate, settings.synths[i].value().synth);
