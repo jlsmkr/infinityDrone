@@ -1,52 +1,55 @@
 #pragma once
 #include "Synth.h"
-#include <array>
-#include <optional>
+#include "DaisyDuino.h"
+
+#define MAX_SYNTHS 3
 
 struct SynthCfg {
-  Synth::Config synth;
-  float amount = 1.0f;
+  Synth::Config config;
+  float volume = 1.0f;
 };
 
 class Pad {
-public:
+  public:
     struct Config {
-        std::array<std::optional<SynthCfg>, 3> synths;
+      SynthCfg layers[MAX_SYNTHS];
+      int active_layers_count;
     };
-    static const int MAX_SYNTHS = 3;
 
-    Pad(float samplerate, const Config& config) : settings(config) {
-        for (int i = 0; i < MAX_SYNTHS; i++) {
-            if (settings.synths[i].has_value()) {
-                synths[i] = new Synth(samplerate, settings.synths[i].value().synth);
-            } else {
-                synths[i] = nullptr;
-            }
+    void Init(float sr) {
+      active_count = 0;
+      for (int i = 0; i < MAX_SYNTHS; i++) {
+        synths[i].Init(sr);
+      }
+    }
+
+    void ApplyConfig(const Config& config, int midi_root) {
+      active_count = config.active_layers_count;
+      for (int i = 0; i < active_count; i++) {
+        synths[i].ApplyConfig(config.layers[i].config, midi_root);
+      }
+    }
+
+    void SetGate(bool gate_state) {
+      for (int i = 0; i < active_count; i++) {
+        synths[i].gate_state = gate_state;
+      }
+    }
+
+    void Process(float &l, float &r) {
+        for (int i = 0; i < active_count; i++) {
+            synths[i].Process(l, r);
         }
     }
 
-    void SetGate(bool gate) {
-        for (int i = 0; i < MAX_SYNTHS; i++) {
-            if (synths[i] != nullptr) {
-                synths[i]->SetGate(gate);
-            }
-        }
+    bool isRunning() {
+      for (int i = 0; i < active_count; i++) {
+        if (synths[i].isRunning()) return true;
+      }
+      return false;
     }
 
-    std::array<float, 2> Process() {
-        float sigL = 0.0f;
-        float sigR = 0.0f;
-        for (int i = 0; i < MAX_SYNTHS; i++) {
-            if (synths[i] != nullptr) {
-                auto out = synths[i]->Process();
-                sigL += out[0] * settings.synths[i].value().amount;
-                sigR += out[1] * settings.synths[i].value().amount;
-            }
-        }
-        return { sigL, sigR };
-    }
-
-private:
-    Config settings;
-    std::array<Synth*, MAX_SYNTHS> synths = {nullptr, nullptr, nullptr};
+  private:
+    Synth synths[MAX_SYNTHS];
+    int active_count;
 };

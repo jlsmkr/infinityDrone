@@ -1,89 +1,97 @@
 #pragma once
 #include "DaisyDuino.h"
 #include "Filter.h"
-#include "array"
-#include "vector"
 
-struct EnvelopeCfg {
-  float attack;
-  float decay;
-  float sustain;
-  float release;
-};
+#define MAX_KEYS 4
+#define MAX_OSC 8
 
-struct SvfCfg {
-  float freq;
-  float res;
-};
-
-struct KeyCfg {
-  int midi;
-  std::array<float, 2> detune;
+struct Note {
+  int interval;
+  float detune;
   uint8_t waveform;
   float amp;
 };
 
-struct EqCfg {
-  float freq;
-  float Q;
-  float gain_db;
-};
+struct EnvelopeCfg { float attack, decay, sustain, release; };
+struct SvfCfg { float freq, res; };
+struct EqCfg { float freq, Q, gain_db; };
 
 class Synth
 {
   public:
     struct Config {
-      std::vector<KeyCfg> keys;
+      Note notes[MAX_KEYS];
+      int active_keys_count;
       EnvelopeCfg env_main;
-      SvfCfg filter;
+      SvfCfg eq_hc;
       SvfCfg eq_lc;
       EqCfg eq_bell;
     };
+    bool gate_state = false;
+    void Init(float sr) {
+      env_main.Init(sr);
+      eq_hc.Init(sr);
+      eq_lc.Init(sr);
+      eq_bell.Init(sr);
 
-    static const int MAX_OSC = 10;
-
-    Synth(float samplerate, const Config& config) 
-      : settings(config),
-        samplerate(samplerate)
-    {
-      initOsc();
-      initAdsr(env_main, settings.env_main);
-      initSvf(filter, settings.filter);
-      initSvf(eq_lc, settings.eq_lc);
-      eq_bell.Init(samplerate);
-      eq_bell.SetPeak(settings.eq_bell.freq, settings.eq_bell.Q, settings.eq_bell.gain_db);
+      for (int i = 0; i < MAX_OSC; i++) {
+        osc[i].Init(sr);
+      }
     }
 
-    std::array<float, 2> Process() {
-      float signal = 0;
+    void ApplyConfig(const Config& config, int& midi_root) {
+      env_main.SetTime(ADSR_SEG_ATTACK, config.env_main.attack);
+      env_main.SetTime(ADSR_SEG_DECAY, config.env_main.decay);
+      env_main.SetSustainLevel(config.env_main.sustain);
+      env_main.SetTime(ADSR_SEG_RELEASE, config.env_main.release);
+      env_main.Process(true);
+      env_main.Retrigger(false);
 
-      if (!isRunning() && !gate_state) return {0.0f, 0.0f};
+      eq_hc.SetFreq(config.eq_hc.freq);
+      eq_hc.SetRes(config.eq_hc.res);
 
-      for (int i = 0; i < num_osc; i++) {
+      eq_lc.SetFreq(config.eq_lc.freq);
+      eq_lc.SetRes(config.eq_lc.res);
+
+      eq_bell.SetPeak(config.eq_bell.freq, config.eq_bell.Q, config.eq_bell.gain_db);
+
+      active_osc_count = 0;
+      for (int i = 0; i < config.active_keys_count; i++) {
+        int midi = midi_root + config.notes[i].interval;
+
+        osc[active_osc_count].SetWaveform(config.notes[i].waveform);
+        osc[active_osc_count].SetAmp(config.notes[i].amp);
+        osc[active_osc_count].SetFreq(daisysp::mtof(midi));
+
+        active_osc_count++;
+
+        osc[active_osc_count].SetWaveform(config.notes[i].waveform);
+        osc[active_osc_count].SetAmp(config.notes[i].amp);
+        osc[active_osc_count].SetFreq(daisysp::mtof(midi) * config.notes[i].detune);
+
+        active_osc_count++;
+      }
+    }
+
+    void Process(float &l, float &r) {
+      if (!isRunning() && !gate_state) return;
+
+      float signal = 0.0f;
+      for (int i = 0; i < active_osc_count; i++) {
         signal += osc[i].Process();
       }
 
-      float env_val_main = env_main.Process(gate_state);
+      float env_main_val = env_main.Process(gate_state);
+      signal = (signal / (float)active_osc_count) * env_main_val;
 
-      signal = (signal * 0.5f) * env_val_main;
-
-      filter.Process(signal);
-      signal = filter.Low();
+      eq_hc.Process(signal);
+      signal = eq_hc.Low();
       signal = eq_bell.Process(signal);
       eq_lc.Process(signal);
       signal = eq_lc.High();
 
-      float revL, revR;
-      revL = 0;
-      revR = 0;
-      return {
-        (signal * 0.35) + (revL * 0.65),
-        (signal * 0.35) + (revR * 0.65)
-      };
-    }
-
-    void SetGate(bool gate) {
-      gate_state = gate;
+      l += signal;
+      r += signal;
     }
 
     bool isRunning() {
@@ -91,51 +99,10 @@ class Synth
     }
 
   private:
-    Config settings;
-    float samplerate;
-
     Oscillator osc[MAX_OSC];
     Adsr env_main;
-    Svf filter;
+    Svf eq_hc;
     Svf eq_lc;
     Filter eq_bell;
-
-    bool gate_state = false;
-
-    int num_osc;
-
-    void initOsc() {
-      int index = 0;
-      for (const auto& key : settings.keys) {
-        for (int d = 0; d < 2; d++) {
-          if (index >= MAX_OSC) break;
-
-          osc[index].Init(samplerate);
-          osc[index].SetWaveform(key.waveform);
-          osc[index].SetAmp(key.amp);
-          osc[index].SetFreq(daisysp::mtof((float)key.midi) * key.detune[d]);
-
-          index++;
-        }
-      }
-      num_osc = index;
-    }
-
-    void initAdsr(Adsr &env, const EnvelopeCfg& envCfg) {
-      env.Init(samplerate);
-      env.SetTime(ADSR_SEG_ATTACK, envCfg.attack);
-      env.SetTime(ADSR_SEG_DECAY, envCfg.decay);
-      env.SetSustainLevel(envCfg.sustain);
-      env.SetTime(ADSR_SEG_RELEASE, envCfg.release);
-      
-      env.Process(true);
-
-      env.Retrigger(false);
-    }
-
-    void initSvf(Svf &svf, const SvfCfg& filterCfg) {
-      svf.Init(samplerate);
-      svf.SetFreq(filterCfg.freq);
-      svf.SetRes(filterCfg.res);
-    }
+    int active_osc_count;
 };
