@@ -6,44 +6,86 @@
 
 // PAD CFG
 
-Synth::Config strings PROGMEM = {
+const Synth::Config deep_sub DSY_SDRAM_BSS = {
   .notes = {
-    {-12, 1.009f, Oscillator::WAVE_SAW, 0.3f}, // A3 57
-    {-5, 1.009f, Oscillator::WAVE_SAW, 0.3f}, // E4 64
-    {0, 1.009f, Oscillator::WAVE_SAW, 0.1f}, // A4 69
-    {0, 1.009f, Oscillator::WAVE_SAW, 0.0f},
-  },
-  .active_keys_count = 2,
-  .env_main = {5.0f, 0.1f, 1.0f, 1.6f},
-  .eq_hc   = {550.0f, 0.2f},
-  .eq_lc    = {300.0f, 0.2f},
-  .eq_bell  = {400.0f, 1.4f, -18.0f},
-};
-
-Synth::Config shimmer PROGMEM = {
-  .notes = {
-    {12, 1.003f, Oscillator::WAVE_SQUARE, 0.1f}, // A5 81
-    {19, 1.003f, Oscillator::WAVE_SQUARE, 0.2f}, // E6 88
-    {24, 1.003f, Oscillator::WAVE_SQUARE, 0.2f}, // A6 93
-    {31, 1.003f, Oscillator::WAVE_SQUARE, 0.1f}, // E7 100
+    {-24, 1.001f, Oscillator::WAVE_SIN, 0.8f}, // A2
+    {-17, 1.001f, Oscillator::WAVE_SIN, 1.0f}, // E3
   },
   .active_keys_count = 2,
   .env_main  = {20.0f, 0.1f, 1.0f, 1.6f},
-  .eq_hc   = {2000.0f, 0.2f},
-  .eq_lc    = {500.0f, 0.2f},
-  .eq_bell   = {550.0f, 1.0f, -3.0f},
+  .eq_lpf    = {150.0f, 0.2f},
+  .eq_hpf    = {50.0f, 0.2f},
+  .eq_bell1   = {150.0f, 1.0f, -15.0f},
+  .eq_bell2   = {500.0f, 1.5f, -5.0f},
+  .lfo_amp  = {0.2f, 0.05f, true},
+  .lfo_lpf  = {0.0f, 0.0f, false},
 };
 
-Pad::Config pad1Cfg PROGMEM = {
-  .layers = {
-    {strings, 1.0f},
+const Synth::Config deep_warm DSY_SDRAM_BSS {
+  .notes = {
+    {-15, 1.001f, Oscillator::WAVE_TRI, 0.2f}, // F#3
+    {-12, 1.001f, Oscillator::WAVE_TRI, 1.0f}, // A3
+    {-8, 1.001f, Oscillator::WAVE_TRI, 0.5f},  // C#4
+    {-5, 1.001f, Oscillator::WAVE_TRI, 1.0f},  // E4
   },
-  .active_layers_count = 1,
+  .active_keys_count = 4,
+  .env_main  = {20.0f, 0.1f, 1.0f, 1.6f},
+  .eq_lpf    = {350.0f, 0.2f},
+  .eq_hpf    = {150.0f, 0.2f},
+  .eq_bell1   = {250.0f, 0.8f, -20.0f},
+  .eq_bell2   = {1000.0f, 1.5f, 12.0f},
+  .lfo_amp  = {0.0f, 0.1f, false},
+  .lfo_lpf  = {0.3f, 50.0f, false},
 };
 
-Pad::Config pad2Cfg PROGMEM = {
+const Synth::Config deep_mid DSY_SDRAM_BSS {
+  .notes = {
+    {-10, 1.001f, Oscillator::WAVE_SAW, 0.8f}, // B3
+    {-5, 1.001f, Oscillator::WAVE_SAW, 1.0f},  // E4
+    //{-1, 1.001f, Oscillator::WAVE_SQUARE, 0.8f},  // G#4
+    {2, 1.001f, Oscillator::WAVE_SAW, 0.5f},   // B4
+  },
+  .active_keys_count = 3,
+  .env_main  = {20.0f, 0.1f, 1.0f, 1.6f},
+  .eq_lpf    = {400.0f, 0.2f},
+  .eq_hpf    = {400.0f, 0.2f},
+  .eq_bell1   = {300.0f, 0.8f, -20.0f},
+  .eq_bell2   = {2000.0f, 2.0f, 4.0f},
+  .lfo_amp  = {0.0f, 0.0f, false},
+  .lfo_lpf  = {0.3f, 50.0f, false},
+};
+
+const Synth::Config deep_shimmer DSY_SDRAM_BSS {
+  .notes = {
+    {14, 1.001f, Oscillator::WAVE_TRI, 0.4f}, // B5
+    {18, 1.001f, Oscillator::WAVE_TRI, 0.3f}, // E6
+    {26, 1.001f, Oscillator::WAVE_TRI, 0.2f}, // B6
+  },
+  .active_keys_count = 4,
+  .env_main  = {20.0f, 0.1f, 1.0f, 1.6f},
+  .eq_lpf    = {8000.0f, 0.2f},
+  .eq_hpf    = {3000.0f, 0.2f},
+  .eq_bell1   = {550.0f, 1.0f, -0.0f},
+  .eq_bell2   = {550.0f, 1.0f, -0.0f},
+  .lfo_amp  = {1.5f, 0.1f, true},
+  .lfo_lpf  = {0.3f, 50.0f, false},
+};
+
+const Pad::Config pad1Cfg = {
   .layers = {
-    {shimmer, 1.0f},
+    {deep_sub, 0.4f},
+    {deep_warm, 0.5f},
+    {deep_mid, 0.1f},
+    //{deep_shimmer, 0.2f},
+  },
+  .active_layers_count = 3,
+  .eq_bell1   = {300.0f, 1.0f, -0.7f},
+  .eq_bell2   = {800.0f, 1.5f, -4.0f},
+};
+
+const Pad::Config pad2Cfg = {
+  .layers = {
+    {deep_warm, 1.0f},
   },
   .active_layers_count = 1,
 };
@@ -56,7 +98,7 @@ bool active_synth = false;
 bool set_type = true; // true: midi; false: pad
 int active_pad = 0;
 
-Pad pad1, pad2;
+Pad *pad1, *pad2;
 static ReverbSc reverb;
 
 Switch start_button, stop_button, set_button, prev_button, next_button;
@@ -66,8 +108,8 @@ void AudioCallback(float **in, float **out, size_t size) {
     float l = 0.0f;
     float r = 0.0f;
 
-    pad1.Process(l, r);
-    pad2.Process(l, r);
+    pad1->Process(l, r);
+    pad2->Process(l, r);
 
     float rev_l, rev_r;
     reverb.Process(l, r, &rev_l, &rev_r);
@@ -85,14 +127,14 @@ void SwitchPad() {
   }
   if (active_synth) {
     // no 1
-    pad2.SetGate(false);
-    pad1.ApplyConfig(cfg, active_midi);
-    pad1.SetGate(true);
+    pad2->SetGate(false);
+    pad1->ApplyConfig(cfg, active_midi);
+    pad1->SetGate(true);
   } else {
     // no 2
-    pad1.SetGate(false);
-    pad2.ApplyConfig(cfg, active_midi);
-    pad2.SetGate(true);
+    pad1->SetGate(false);
+    pad2->ApplyConfig(cfg, active_midi);
+    pad2->SetGate(true);
   }
 }
 
@@ -107,8 +149,14 @@ void setup() {
   DAISY.init(DAISY_SEED, AUDIO_SR_48K);
   sr = DAISY.get_samplerate();
 
-  pad1.Init(sr);
-  pad2.Init(sr);
+  static Pad p1 DSY_SDRAM_BSS;
+  static Pad p2 DSY_SDRAM_BSS;
+
+  pad1 = &p1;
+  pad2 = &p2;
+
+  pad1->Init(sr);
+  pad2->Init(sr);
 
   reverb.Init(sr);
 
@@ -128,8 +176,8 @@ void loop() {
   }
   if (stop_button.RisingEdge()) {
     // stop everything
-    pad1.SetGate(false);
-    pad2.SetGate(false);
+    pad1->SetGate(false);
+    pad2->SetGate(false);
   }
   if (set_button.RisingEdge()) {
     set_type = !set_type;
