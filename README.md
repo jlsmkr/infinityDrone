@@ -11,8 +11,6 @@ We are using the Arduino IDE for programming. To get it running, you can follow 
 ### 2. Display
 We are using this display: https://www.otronic.nl/en/24-inch-oled-display-128x64-i2c-ssd1309-33v.html. But you can use whatever display you like most. Just make sure it supports I2C and has a resolution of 128x64.
 
-_Note: The display is not implemented yet._
-
 ### 3. Other hardware
 We are using a breadboard to connect all components. In addition to the Daisy and the display, you will also need five switches, some jumper wires and an audio cable. We recommend using an audiio interface to capture the sound of the Daisy.
 
