@@ -13,6 +13,7 @@ class Pad {
       SynthCfg layers[MAX_SYNTHS];
       int active_layers_count;
       EqCfg eq_bell1, eq_bell2;
+      char name[5];
     };
 
     void Init(float sr) {

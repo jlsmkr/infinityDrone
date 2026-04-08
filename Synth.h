@@ -15,7 +15,10 @@ struct Note {
 struct EnvelopeCfg { float attack, decay, sustain, release; };
 struct SvfCfg { float freq, res; };
 struct EqCfg { float freq, Q, gain_db; };
-struct LFOCfg { float freq, amp; bool active; };
+struct LFOCfg { 
+  float freq, amp; 
+  bool active; 
+};
 
 class Synth
 {
