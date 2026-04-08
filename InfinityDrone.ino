@@ -1,102 +1,32 @@
 #include "DaisyDuino.h"
+#include "Wire.h"
+#include "Adafruit_GFX.h"
+#include "Adafruit_SSD1306.h"
 #include "Synth.h"
 #include "Pad.h"
+#include "Presets.h"
 
 #define PAD_COUNT 2
 
-// PAD CFG
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_ADDR 0x3C
 
-const Synth::Config deep_sub DSY_SDRAM_BSS = {
-  .notes = {
-    {-24, 1.001f, Oscillator::WAVE_SIN, 0.8f}, // A2
-    {-17, 1.001f, Oscillator::WAVE_SIN, 1.0f}, // E3
-  },
-  .active_keys_count = 2,
-  .env_main  = {20.0f, 0.1f, 1.0f, 1.6f},
-  .eq_lpf    = {150.0f, 0.2f},
-  .eq_hpf    = {50.0f, 0.2f},
-  .eq_bell1   = {150.0f, 1.0f, -15.0f},
-  .eq_bell2   = {500.0f, 1.5f, -5.0f},
-  .lfo_amp  = {0.2f, 0.05f, true},
-  .lfo_lpf  = {0.0f, 0.0f, false},
-};
+#define SDA_PIN 12
+#define SCL_PIN 11
 
-const Synth::Config deep_warm DSY_SDRAM_BSS {
-  .notes = {
-    {-15, 1.001f, Oscillator::WAVE_TRI, 0.2f}, // F#3
-    {-12, 1.001f, Oscillator::WAVE_TRI, 1.0f}, // A3
-    {-8, 1.001f, Oscillator::WAVE_TRI, 0.5f},  // C#4
-    {-5, 1.001f, Oscillator::WAVE_TRI, 1.0f},  // E4
-  },
-  .active_keys_count = 4,
-  .env_main  = {20.0f, 0.1f, 1.0f, 1.6f},
-  .eq_lpf    = {350.0f, 0.2f},
-  .eq_hpf    = {150.0f, 0.2f},
-  .eq_bell1   = {250.0f, 0.8f, -20.0f},
-  .eq_bell2   = {1000.0f, 1.5f, 12.0f},
-  .lfo_amp  = {0.0f, 0.1f, false},
-  .lfo_lpf  = {0.3f, 50.0f, false},
-};
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-const Synth::Config deep_mid DSY_SDRAM_BSS {
-  .notes = {
-    {-10, 1.001f, Oscillator::WAVE_SAW, 0.8f}, // B3
-    {-5, 1.001f, Oscillator::WAVE_SAW, 1.0f},  // E4
-    //{-1, 1.001f, Oscillator::WAVE_SQUARE, 0.8f},  // G#4
-    {2, 1.001f, Oscillator::WAVE_SAW, 0.5f},   // B4
-  },
-  .active_keys_count = 3,
-  .env_main  = {20.0f, 0.1f, 1.0f, 1.6f},
-  .eq_lpf    = {400.0f, 0.2f},
-  .eq_hpf    = {400.0f, 0.2f},
-  .eq_bell1   = {300.0f, 0.8f, -20.0f},
-  .eq_bell2   = {2000.0f, 2.0f, 4.0f},
-  .lfo_amp  = {0.0f, 0.0f, false},
-  .lfo_lpf  = {0.3f, 50.0f, false},
-};
-
-const Synth::Config deep_shimmer DSY_SDRAM_BSS {
-  .notes = {
-    {14, 1.001f, Oscillator::WAVE_TRI, 0.4f}, // B5
-    {18, 1.001f, Oscillator::WAVE_TRI, 0.3f}, // E6
-    {26, 1.001f, Oscillator::WAVE_TRI, 0.2f}, // B6
-  },
-  .active_keys_count = 4,
-  .env_main  = {20.0f, 0.1f, 1.0f, 1.6f},
-  .eq_lpf    = {8000.0f, 0.2f},
-  .eq_hpf    = {3000.0f, 0.2f},
-  .eq_bell1   = {550.0f, 1.0f, -0.0f},
-  .eq_bell2   = {550.0f, 1.0f, -0.0f},
-  .lfo_amp  = {1.5f, 0.1f, true},
-  .lfo_lpf  = {0.3f, 50.0f, false},
-};
-
-const Pad::Config pad1Cfg = {
-  .layers = {
-    {deep_sub, 0.4f},
-    {deep_warm, 0.5f},
-    {deep_mid, 0.1f},
-    //{deep_shimmer, 0.2f},
-  },
-  .active_layers_count = 3,
-  .eq_bell1   = {300.0f, 1.0f, -0.7f},
-  .eq_bell2   = {800.0f, 1.5f, -4.0f},
-};
-
-const Pad::Config pad2Cfg = {
-  .layers = {
-    {deep_warm, 1.0f},
-  },
-  .active_layers_count = 1,
-};
-
-// MAIN
+Pad::Config current_config = deep;
+Pad::Config next_config = deep;
 
 float sr;
-int active_midi = 69; // 404 Hz
+int next_midi = 69, current_midi = 0;
 bool active_synth = false;
 bool set_type = true; // true: midi; false: pad
+bool is_stopped = true;
 int active_pad = 0;
+const char* NOTE_NAMES[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 Pad *pad1, *pad2;
 static ReverbSc reverb;
@@ -119,33 +49,112 @@ void AudioCallback(float **in, float **out, size_t size) {
   }
 }
 
-void SwitchPad() {
-  Pad::Config cfg;
-  switch (active_pad) {
-    case 0: cfg = pad1Cfg; break;
-    default: cfg = pad2Cfg; break;
+void getNoteName(int midi, char* buffer) {
+    if (midi < 0) {
+        strcpy(buffer, " ");
+        return;
+    }
+    // Daisy/MIDI Standard: 60 = C4. Deine Logik startete bei 61.
+    int note_idx = midi % 12;
+    strcpy(buffer, NOTE_NAMES[note_idx]);
+}
+
+void drawUi() {
+  // create key char
+  char current_key[3];
+  char next_key[3];
+  getNoteName(is_stopped ? -1 : current_midi, current_key);
+  getNoteName(next_midi, next_key);
+  
+  // display stuff
+  display.clearDisplay();
+
+  int mid_x = 64;
+  int split_y = 21;
+
+  // top left
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(20, 7);
+  if (is_stopped) {
+    display.print("    ");
+  } else {
+    display.print(current_config.name);
   }
+
+  // top right
+  if (!set_type) {
+    display.fillRect(mid_x, 0, 64, 21, SSD1306_WHITE);
+    display.setTextColor(SSD1306_BLACK);
+  }
+  display.setCursor(mid_x + 20, 7);
+  display.print(next_config.name);
+  display.setTextColor(SSD1306_WHITE);
+
+  // bottom left
+  display.setTextSize(3);
+
+  int16_t x1, y1;
+  uint16_t w, h;
+  int pos_x, pos_y;
+
+  display.getTextBounds(current_key, 0, 0, &x1, &y1, &w, &h);
+
+  pos_x = (mid_x / 2) - (w / 2);
+  pos_y = split_y + ((64 - split_y) / 2) - (h / 2);
+
+  display.setCursor(pos_x, pos_y);
+  display.print(current_key);
+
+  // bottom right
+  if (set_type) {
+    display.fillRect(mid_x, split_y, 64, 43, SSD1306_WHITE);
+    display.setTextColor(SSD1306_BLACK);
+  }
+  display.getTextBounds(next_key, 0, 0, &x1, &y1, &w, &h);
+
+  pos_x = mid_x + 32 - (w / 2);
+  pos_y = split_y + ((64 - split_y) / 2) - (h / 2);
+
+  display.setCursor(pos_x, pos_y);
+  display.print(next_key);
+
+  display.display();
+}
+
+void SwitchPad() {
   if (active_synth) {
     // no 1
     pad2->SetGate(false);
-    pad1->ApplyConfig(cfg, active_midi);
+    pad1->ApplyConfig(next_config, next_midi);
     pad1->SetGate(true);
   } else {
     // no 2
     pad1->SetGate(false);
-    pad2->ApplyConfig(cfg, active_midi);
+    pad2->ApplyConfig(next_config, next_midi);
     pad2->SetGate(true);
   }
+  current_config = next_config;
+  current_midi = next_midi;
+  is_stopped = false;
+  drawUi();
 }
 
 void setup() {
+  // init buttons
   start_button.Init(1000, true, 15, INPUT_PULLUP);
   stop_button.Init(1000, true, 16, INPUT_PULLUP);
   set_button.Init(1000, true, 17, INPUT_PULLUP);
   prev_button.Init(1000, true, 18, INPUT_PULLUP);
   next_button.Init(1000, true, 19, INPUT_PULLUP);
 
-  // init Daisy
+  // init display
+  Wire.begin(SDA_PIN, SCL_PIN);
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+    while (true); 
+  }
+
+  // init daisy
   DAISY.init(DAISY_SEED, AUDIO_SR_48K);
   sr = DAISY.get_samplerate();
 
@@ -160,15 +169,21 @@ void setup() {
 
   reverb.Init(sr);
 
+  drawUi();
+
   DAISY.begin(AudioCallback);
 }
 
 void loop() {
+  // debounce all buttons
   start_button.Debounce();
   stop_button.Debounce();
   set_button.Debounce();
   prev_button.Debounce();
   next_button.Debounce();
+
+  // handle button press
+  bool do_ui_change = false;
 
   if (start_button.RisingEdge()) {
     active_synth = !active_synth; // just for testing purposes
@@ -178,16 +193,20 @@ void loop() {
     // stop everything
     pad1->SetGate(false);
     pad2->SetGate(false);
+    is_stopped = true;
+    drawUi();
   }
   if (set_button.RisingEdge()) {
     set_type = !set_type;
+    do_ui_change = true;
   }
   if (prev_button.RisingEdge()) {
     if (set_type) {
-      if (active_midi > 61) {
-        active_midi--;
+      // from C#4 to C5
+      if (next_midi > 61) {
+        next_midi--;
       } else {
-        active_midi = 72;
+        next_midi = 72;
       }
     } else {
       if (active_pad < (PAD_COUNT -1)) {
@@ -196,13 +215,15 @@ void loop() {
         active_pad = 0;
       }
     }
+    do_ui_change = true;
   }
   if (next_button.RisingEdge()) {
     if (set_type) {
-      if (active_midi < 72) {
-        active_midi++;
+      // from C#4 to C5
+      if (next_midi < 72) {
+        next_midi++;
       } else {
-        active_midi = 61;
+        next_midi = 61;
       }
     } else {
       if (active_pad > 0) {
@@ -211,5 +232,16 @@ void loop() {
         active_pad = PAD_COUNT - 1;
       }
     }
+    do_ui_change = true;
   }
+
+  if (do_ui_change) {
+    switch (active_pad) {
+      case 0: next_config = deep; break;
+      default: next_config = verby; break;
+    }
+    drawUi();
+  }
+
+  delay(5);
 }
